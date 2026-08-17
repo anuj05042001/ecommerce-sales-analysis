@@ -66,6 +66,8 @@ The interactive dashboard includes:
 - Region-wise Sales & Profit
 - Sub-category Profitability
 - Year, Category and Region filters
+![E-Commerce Dashboard](images/dashboard.png)
+
 
 ## Key Insights
 
