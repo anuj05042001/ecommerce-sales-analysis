@@ -2,9 +2,9 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# --------------------------------------------------
+# ==================================================
 # PAGE CONFIG
-# --------------------------------------------------
+# ==================================================
 
 st.set_page_config(
     page_title="E-Commerce Sales Dashboard",
@@ -12,9 +12,9 @@ st.set_page_config(
     layout="wide"
 )
 
-# --------------------------------------------------
+# ==================================================
 # CUSTOM CSS
-# --------------------------------------------------
+# ==================================================
 
 st.markdown("""
 <style>
@@ -37,16 +37,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# --------------------------------------------------
+# ==================================================
 # LOAD DATA
-# --------------------------------------------------
+# ==================================================
 
 @st.cache_data
 def load_data():
 
     df = pd.read_csv("ecommerce_data.csv")
 
-    # Convert dates
+    # Date columns
     df["order_date"] = pd.to_datetime(
         df["order_date"],
         errors="coerce"
@@ -67,12 +67,13 @@ def load_data():
     ]
 
     for col in numeric_columns:
-        df[col] = pd.to_numeric(
-            df[col],
-            errors="coerce"
-        )
+        if col in df.columns:
+            df[col] = pd.to_numeric(
+                df[col],
+                errors="coerce"
+            )
 
-    # Create year column
+    # Year
     df["Year"] = df["order_date"].dt.year
 
     return df
@@ -80,9 +81,9 @@ def load_data():
 
 df = load_data()
 
-# --------------------------------------------------
+# ==================================================
 # TITLE
-# --------------------------------------------------
+# ==================================================
 
 st.title("🛒 E-Commerce Sales Analytics Dashboard")
 
@@ -92,14 +93,16 @@ st.markdown(
 
 st.divider()
 
-# --------------------------------------------------
+# ==================================================
 # SIDEBAR FILTERS
-# --------------------------------------------------
+# ==================================================
 
 st.sidebar.header("🔎 Filters")
 
-# Year filter
-years = sorted(df["Year"].dropna().unique())
+# Year
+years = sorted(
+    df["Year"].dropna().unique()
+)
 
 selected_years = st.sidebar.multiselect(
     "Year",
@@ -107,7 +110,7 @@ selected_years = st.sidebar.multiselect(
     default=years
 )
 
-# Category filter
+# Category
 categories = sorted(
     df["category"].dropna().unique()
 )
@@ -118,7 +121,7 @@ selected_categories = st.sidebar.multiselect(
     default=categories
 )
 
-# Region filter
+# Region
 regions = sorted(
     df["region"].dropna().unique()
 )
@@ -129,7 +132,7 @@ selected_regions = st.sidebar.multiselect(
     default=regions
 )
 
-# Segment filter
+# Segment
 segments = sorted(
     df["segment"].dropna().unique()
 )
@@ -140,9 +143,9 @@ selected_segments = st.sidebar.multiselect(
     default=segments
 )
 
-# --------------------------------------------------
+# ==================================================
 # APPLY FILTERS
-# --------------------------------------------------
+# ==================================================
 
 filtered_df = df[
     (df["Year"].isin(selected_years)) &
@@ -151,9 +154,9 @@ filtered_df = df[
     (df["segment"].isin(selected_segments))
 ].copy()
 
-# --------------------------------------------------
-# CHECK EMPTY DATA
-# --------------------------------------------------
+# ==================================================
+# EMPTY DATA CHECK
+# ==================================================
 
 if filtered_df.empty:
 
@@ -163,9 +166,9 @@ if filtered_df.empty:
 
     st.stop()
 
-# --------------------------------------------------
+# ==================================================
 # KPI CALCULATIONS
-# --------------------------------------------------
+# ==================================================
 
 total_sales = filtered_df["sales"].sum()
 
@@ -181,9 +184,9 @@ profit_margin = (
     else 0
 )
 
-# --------------------------------------------------
+# ==================================================
 # KPI CARDS
-# --------------------------------------------------
+# ==================================================
 
 col1, col2, col3, col4, col5 = st.columns(5)
 
@@ -214,9 +217,9 @@ col5.metric(
 
 st.divider()
 
-# --------------------------------------------------
-# SALES TREND
-# --------------------------------------------------
+# ==================================================
+# SALES & PROFIT TREND
+# ==================================================
 
 st.subheader("📈 Sales & Profit Trend")
 
@@ -248,9 +251,9 @@ st.plotly_chart(
     use_container_width=True
 )
 
-# --------------------------------------------------
+# ==================================================
 # CATEGORY ANALYSIS
-# --------------------------------------------------
+# ==================================================
 
 col1, col2 = st.columns(2)
 
@@ -262,7 +265,10 @@ with col1:
         filtered_df
         .groupby("category", as_index=False)["sales"]
         .sum()
-        .sort_values("sales", ascending=False)
+        .sort_values(
+            "sales",
+            ascending=False
+        )
     )
 
     fig_category = px.bar(
@@ -291,7 +297,10 @@ with col2:
         filtered_df
         .groupby("category", as_index=False)["profit"]
         .sum()
-        .sort_values("profit", ascending=False)
+        .sort_values(
+            "profit",
+            ascending=False
+        )
     )
 
     fig_profit = px.bar(
@@ -312,9 +321,9 @@ with col2:
         use_container_width=True
     )
 
-# --------------------------------------------------
+# ==================================================
 # REGION ANALYSIS
-# --------------------------------------------------
+# ==================================================
 
 col1, col2 = st.columns(2)
 
@@ -326,7 +335,10 @@ with col1:
         filtered_df
         .groupby("region", as_index=False)["sales"]
         .sum()
-        .sort_values("sales", ascending=False)
+        .sort_values(
+            "sales",
+            ascending=False
+        )
     )
 
     fig_region = px.bar(
@@ -335,6 +347,11 @@ with col1:
         y="sales",
         title="Sales by Region",
         text_auto=".2s"
+    )
+
+    fig_region.update_layout(
+        xaxis_title="Region",
+        yaxis_title="Sales"
     )
 
     st.plotly_chart(
@@ -350,7 +367,10 @@ with col2:
         filtered_df
         .groupby("region", as_index=False)["profit"]
         .sum()
-        .sort_values("profit", ascending=False)
+        .sort_values(
+            "profit",
+            ascending=False
+        )
     )
 
     fig_region_profit = px.bar(
@@ -361,14 +381,19 @@ with col2:
         text_auto=".2s"
     )
 
+    fig_region_profit.update_layout(
+        xaxis_title="Region",
+        yaxis_title="Profit"
+    )
+
     st.plotly_chart(
         fig_region_profit,
         use_container_width=True
     )
 
-# --------------------------------------------------
-# SEGMENT ANALYSIS
-# --------------------------------------------------
+# ==================================================
+# CUSTOMER SEGMENT
+# ==================================================
 
 st.subheader("👥 Customer Segment Analysis")
 
@@ -396,9 +421,9 @@ st.plotly_chart(
     use_container_width=True
 )
 
-# --------------------------------------------------
+# ==================================================
 # TOP PRODUCTS
-# --------------------------------------------------
+# ==================================================
 
 col1, col2 = st.columns(2)
 
@@ -408,9 +433,15 @@ with col1:
 
     top_products = (
         filtered_df
-        .groupby("product_name", as_index=False)["sales"]
+        .groupby(
+            "product_name",
+            as_index=False
+        )["sales"]
         .sum()
-        .sort_values("sales", ascending=False)
+        .sort_values(
+            "sales",
+            ascending=False
+        )
         .head(10)
         .sort_values("sales")
     )
@@ -434,7 +465,10 @@ with col2:
 
     bottom_products = (
         filtered_df
-        .groupby("product_name", as_index=False)["profit"]
+        .groupby(
+            "product_name",
+            as_index=False
+        )["profit"]
         .sum()
         .sort_values("profit")
         .head(10)
@@ -453,15 +487,18 @@ with col2:
         use_container_width=True
     )
 
-# --------------------------------------------------
+# ==================================================
 # SUB-CATEGORY ANALYSIS
-# --------------------------------------------------
+# ==================================================
 
 st.subheader("📊 Sub-Category Performance")
 
 subcategory = (
     filtered_df
-    .groupby("sub_category", as_index=False)
+    .groupby(
+        "sub_category",
+        as_index=False
+    )
     .agg(
         Sales=("sales", "sum"),
         Profit=("profit", "sum")
@@ -482,36 +519,96 @@ st.plotly_chart(
     use_container_width=True
 )
 
-# --------------------------------------------------
+# ==================================================
 # DISCOUNT VS PROFIT
-# --------------------------------------------------
+# ==================================================
 
 st.subheader("💸 Discount vs Profit")
 
-fig_discount = px.scatter(
-    filtered_df.sample(
-        min(5000, len(filtered_df)),
-        random_state=42
-    ),
-    x="discount",
-    y="profit",
-    size="sales",
-    hover_data=[
+discount_data = filtered_df[
+    [
+        "discount",
+        "profit",
+        "sales",
         "product_name",
         "category",
         "region"
-    ],
-    title="Relationship Between Discount and Profit"
+    ]
+].copy()
+
+# Convert to numeric
+discount_data["discount"] = pd.to_numeric(
+    discount_data["discount"],
+    errors="coerce"
 )
 
-st.plotly_chart(
-    fig_discount,
-    use_container_width=True
+discount_data["profit"] = pd.to_numeric(
+    discount_data["profit"],
+    errors="coerce"
 )
 
-# --------------------------------------------------
+discount_data["sales"] = pd.to_numeric(
+    discount_data["sales"],
+    errors="coerce"
+)
+
+# Remove missing values
+discount_data = discount_data.dropna(
+    subset=[
+        "discount",
+        "profit",
+        "sales"
+    ]
+)
+
+# Only positive sales for bubble size
+discount_data = discount_data[
+    discount_data["sales"] > 0
+]
+
+# Limit records
+if len(discount_data) > 5000:
+
+    discount_data = discount_data.sample(
+        n=5000,
+        random_state=42
+    )
+
+# Only create chart if data exists
+if not discount_data.empty:
+
+    fig_discount = px.scatter(
+        discount_data,
+        x="discount",
+        y="profit",
+        size="sales",
+        hover_data=[
+            "product_name",
+            "category",
+            "region"
+        ],
+        title="Relationship Between Discount and Profit"
+    )
+
+    fig_discount.update_layout(
+        xaxis_title="Discount",
+        yaxis_title="Profit"
+    )
+
+    st.plotly_chart(
+        fig_discount,
+        use_container_width=True
+    )
+
+else:
+
+    st.info(
+        "No valid data available for Discount vs Profit analysis."
+    )
+
+# ==================================================
 # DATA TABLE
-# --------------------------------------------------
+# ==================================================
 
 st.subheader("📋 Filtered Data")
 
@@ -535,7 +632,8 @@ display_columns = [
 ]
 
 display_columns = [
-    col for col in display_columns
+    col
+    for col in display_columns
     if col in filtered_df.columns
 ]
 
@@ -545,12 +643,13 @@ st.dataframe(
     height=400
 )
 
-# --------------------------------------------------
+# ==================================================
 # FOOTER
-# --------------------------------------------------
+# ==================================================
 
 st.divider()
 
 st.markdown(
-    "**E-Commerce Sales Analysis | Built with Python, Pandas, Plotly & Streamlit**"
+    "**E-Commerce Sales Analysis | "
+    "Built with Python, Pandas, Plotly & Streamlit**"
 )
