@@ -13,16 +13,15 @@ import re
 st.set_page_config(
     page_title="AI Data Analyst",
     page_icon="🤖",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
 
 # ============================================================
-# CONSTANTS
+# SETTINGS
 # ============================================================
 
-MODEL_NAME = "Qwen/Qwen3-8B"
+MODEL_NAME = "Qwen/Qwen3-4B"
 
 NUMERIC_COLUMNS = [
     "sales",
@@ -47,50 +46,13 @@ GROUP_COLUMNS = [
 
 
 # ============================================================
-# CUSTOM CSS
+# HEADER
 # ============================================================
 
-st.markdown(
-    """
-    <style>
-
-    .block-container {
-        padding-top: 2rem;
-        padding-bottom: 2rem;
-    }
-
-    .title {
-        font-size: 42px;
-        font-weight: 700;
-        margin-bottom: 5px;
-    }
-
-    .subtitle {
-        font-size: 18px;
-        color: #666;
-        margin-bottom: 20px;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
-# TITLE
-# ============================================================
+st.title("🤖 AI Data Analyst")
 
 st.markdown(
-    '<div class="title">🤖 AI Data Analyst</div>',
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    '<div class="subtitle">'
-    'Ask questions about your e-commerce data in natural English.'
-    '</div>',
-    unsafe_allow_html=True
+    "Ask questions about your e-commerce dataset in **normal English**."
 )
 
 st.divider()
@@ -107,10 +69,7 @@ def load_data():
         "ecommerce_data.csv"
     )
 
-    # ----------------------------
     # Dates
-    # ----------------------------
-
     if "order_date" in data.columns:
 
         data["order_date"] = pd.to_datetime(
@@ -125,10 +84,7 @@ def load_data():
             errors="coerce"
         )
 
-    # ----------------------------
     # Numeric columns
-    # ----------------------------
-
     for column in NUMERIC_COLUMNS:
 
         if column in data.columns:
@@ -138,10 +94,7 @@ def load_data():
                 errors="coerce"
             )
 
-    # ----------------------------
     # Year
-    # ----------------------------
-
     if "order_date" in data.columns:
 
         data["Year"] = (
@@ -168,7 +121,7 @@ except Exception as e:
 
 
 # ============================================================
-# DATA INFORMATION
+# DATASET INFO
 # ============================================================
 
 with st.expander("📊 Dataset Information"):
@@ -192,13 +145,6 @@ with st.expander("📊 Dataset Information"):
             f"${df['sales'].sum():,.0f}"
         )
 
-    else:
-
-        c3.metric(
-            "Total Sales",
-            "N/A"
-        )
-
     if "profit" in df.columns:
 
         c4.metric(
@@ -206,39 +152,20 @@ with st.expander("📊 Dataset Information"):
             f"${df['profit'].sum():,.0f}"
         )
 
-    else:
-
-        c4.metric(
-            "Total Profit",
-            "N/A"
-        )
-
 
 # ============================================================
 # SIDEBAR
 # ============================================================
 
-st.sidebar.title(
-    "🤖 AI Data Analyst"
-)
+st.sidebar.title("💡 Example Questions")
 
-st.sidebar.caption(
-    "Ask questions in normal English."
-)
-
-st.sidebar.divider()
-
-st.sidebar.subheader(
-    "💡 Example Questions"
-)
-
-example_questions = [
+questions = [
 
     "What is the total sales?",
 
     "Which category has the highest sales?",
 
-    "Which category is most profitable?",
+    "Which category has the highest profit?",
 
     "Which region has the highest sales?",
 
@@ -250,9 +177,9 @@ example_questions = [
 
     "How did sales change over the years?",
 
-    "What was the total profit in 2014?",
+    "What was the total sales in 2014?",
 
-    "What was the sales in 2013?",
+    "What was the total profit in 2013?",
 
     "Show the top 5 products by sales.",
 
@@ -272,19 +199,11 @@ example_questions = [
 
 ]
 
-for question_text in example_questions:
+for q in questions:
 
     st.sidebar.write(
-        "• " + question_text
+        "• " + q
     )
-
-
-st.sidebar.divider()
-
-st.sidebar.info(
-    "Python/Pandas performs the actual calculations "
-    "on the dataset."
-)
 
 
 # ============================================================
@@ -298,9 +217,15 @@ try:
 except Exception:
 
     st.error(
-        "HF_TOKEN is missing. "
-        "Go to Manage app → Settings → Secrets "
-        "and add HF_TOKEN."
+        """
+        HF_TOKEN is not configured.
+
+        Go to:
+
+        Manage app → Settings → Secrets
+
+        and add your Hugging Face token.
+        """
     )
 
     st.stop()
@@ -319,7 +244,7 @@ try:
 except Exception as e:
 
     st.error(
-        "Could not initialize Hugging Face client."
+        "Could not initialize Hugging Face."
     )
 
     st.exception(e)
@@ -343,7 +268,7 @@ def clean_json(text):
 
     text = text.strip()
 
-    # Remove Qwen thinking section
+    # Remove thinking section
     text = re.sub(
         r"<think>.*?</think>",
         "",
@@ -351,23 +276,19 @@ def clean_json(text):
         flags=re.DOTALL
     )
 
-    # Remove markdown code fences
-    text = re.sub(
-        r"```json",
-        "",
-        text,
-        flags=re.IGNORECASE
+    # Remove markdown
+    text = text.replace(
+        "```json",
+        ""
     )
 
-    text = re.sub(
-        r"```",
-        "",
-        text
+    text = text.replace(
+        "```",
+        ""
     )
 
     text = text.strip()
 
-    # Find JSON object
     start = text.find("{")
 
     end = text.rfind("}")
@@ -400,13 +321,17 @@ def safe_int(
     default=10
 ):
 
-    if value is None:
-
-        return default
-
     try:
 
         value = int(value)
+
+        if value < 1:
+            return default
+
+        if value > 100:
+            return 100
+
+        return value
 
     except (
         ValueError,
@@ -415,19 +340,9 @@ def safe_int(
 
         return default
 
-    if value < 1:
-
-        return default
-
-    if value > 100:
-
-        return 100
-
-    return value
-
 
 # ============================================================
-# NORMALIZE AI RESPONSE
+# NORMALIZE ANALYSIS
 # ============================================================
 
 def normalize_analysis(
@@ -448,33 +363,22 @@ def normalize_analysis(
     )
 
 
-    valid_analysis_types = [
+    valid_types = [
 
         "single_value",
-
         "group_by",
-
         "top_n",
-
         "bottom_n",
-
         "trend",
-
         "comparison",
-
         "negative_profit",
-
         "discount_profit",
-
         "insights"
 
     ]
 
 
-    if (
-        analysis_type
-        not in valid_analysis_types
-    ):
+    if analysis_type not in valid_types:
 
         analysis_type = "single_value"
 
@@ -511,25 +415,18 @@ def normalize_analysis(
     )
 
 
-    valid_aggregations = [
+    valid_aggregation = [
 
         "sum",
-
         "mean",
-
         "count",
-
         "min",
-
         "max"
 
     ]
 
 
-    if (
-        aggregation
-        not in valid_aggregations
-    ):
+    if aggregation not in valid_aggregation:
 
         aggregation = "sum"
 
@@ -540,61 +437,53 @@ def normalize_analysis(
     )
 
 
-    filter_year = result.get(
+    year = result.get(
         "filter_year"
     )
 
 
-    if filter_year in [
-        None,
-        "",
-        "null",
-        "None"
-    ]:
+    try:
 
-        filter_year = None
+        if year in [
+            None,
+            "",
+            "None",
+            "null"
+        ]:
 
-    else:
+            year = None
 
-        try:
+        else:
 
-            filter_year = int(
-                filter_year
-            )
+            year = int(year)
 
-        except (
-            ValueError,
-            TypeError
-        ):
+    except (
+        ValueError,
+        TypeError
+    ):
 
-            filter_year = None
+        year = None
 
 
     return {
 
-        "analysis_type":
-            analysis_type,
+        "analysis_type": analysis_type,
 
-        "group_column":
-            group_column,
+        "group_column": group_column,
 
-        "value_column":
-            value_column,
+        "value_column": value_column,
 
-        "aggregation":
-            aggregation,
+        "aggregation": aggregation,
 
-        "n":
-            n,
+        "n": n,
 
-        "filter_year":
-            filter_year
+        "filter_year": year
 
     }
 
 
 # ============================================================
-# AI INTENT
+# GET AI INTENT
 # ============================================================
 
 def get_ai_intent(
@@ -602,15 +491,13 @@ def get_ai_intent(
 ):
 
     system_prompt = f"""
+You are an expert data analyst.
 
-You are an expert Data Analyst.
+Your ONLY task is to understand the user's question.
 
-Your ONLY job is to understand the user's question
-and convert it into a JSON analysis instruction.
+DO NOT calculate anything.
 
-Do NOT calculate the answer.
-
-Python/Pandas will calculate the real answer.
+Return ONLY a JSON object.
 
 Dataset columns:
 
@@ -623,8 +510,7 @@ Numeric columns:
 
 {json.dumps(
     [
-        c
-        for c in NUMERIC_COLUMNS
+        c for c in NUMERIC_COLUMNS
         if c in df.columns
     ],
     indent=2
@@ -634,16 +520,13 @@ Grouping columns:
 
 {json.dumps(
     [
-        c
-        for c in GROUP_COLUMNS
+        c for c in GROUP_COLUMNS
         if c in df.columns
     ],
     indent=2
 )}
 
-Return ONLY valid JSON.
-
-Schema:
+Use this exact JSON structure:
 
 {{
     "analysis_type": "single_value",
@@ -674,62 +557,30 @@ count
 min
 max
 
-Rules:
+Column mapping:
 
-Sales, revenue, revenue generated
-=> sales
+sales = sales/revenue
+profit = profit/earnings
+quantity = quantity/units
+discount = discount
+shipping_cost = shipping cost
+category = category
+sub_category = sub_category
+region = region
+segment = segment
+market = market
+country = country
+state = state
+product_name = product
+customer_name = customer
+order_id = orders
 
-Profit, profitability, earnings
-=> profit
+Examples:
 
-Quantity, units, items sold
-=> quantity
-
-Discount, discount percentage
-=> discount
-
-Shipping cost, delivery cost
-=> shipping_cost
-
-Orders, number of orders
-=> order_id
-
-Category
-=> category
-
-Sub-category
-=> sub_category
-
-Region
-=> region
-
-Segment
-=> segment
-
-Market
-=> market
-
-Country
-=> country
-
-State
-=> state
-
-Product
-=> product_name
-
-Customer
-=> customer_name
-
-If the user mentions a year,
-put that year in filter_year.
-
-Example:
-
-User:
+Question:
 Which category has the highest sales?
 
-JSON:
+Return:
 
 {{
     "analysis_type": "group_by",
@@ -740,10 +591,10 @@ JSON:
     "filter_year": null
 }}
 
-User:
+Question:
 Show top 5 products by sales.
 
-JSON:
+Return:
 
 {{
     "analysis_type": "top_n",
@@ -754,10 +605,10 @@ JSON:
     "filter_year": null
 }}
 
-User:
+Question:
 How did sales change over the years?
 
-JSON:
+Return:
 
 {{
     "analysis_type": "trend",
@@ -768,10 +619,10 @@ JSON:
     "filter_year": null
 }}
 
-User:
+Question:
 Does discount affect profit?
 
-JSON:
+Return:
 
 {{
     "analysis_type": "discount_profit",
@@ -782,10 +633,10 @@ JSON:
     "filter_year": null
 }}
 
-User:
+Question:
 Which products are losing money?
 
-JSON:
+Return:
 
 {{
     "analysis_type": "negative_profit",
@@ -796,10 +647,10 @@ JSON:
     "filter_year": null
 }}
 
-User:
+Question:
 Give me 5 important business insights.
 
-JSON:
+Return:
 
 {{
     "analysis_type": "insights",
@@ -810,68 +661,129 @@ JSON:
     "filter_year": null
 }}
 
-Never calculate numbers.
-
-Never invent columns.
-
 Return JSON only.
-
 """
 
 
     user_prompt = f"""
-
 User question:
 
 {question}
 
 Return ONLY JSON.
-
 """
 
 
     try:
 
-        response = (
-            client
-            .chat
-            .completions
-            .create(
+        response = client.chat.completions.create(
 
-                model=MODEL_NAME,
+            model=MODEL_NAME,
 
-                messages=[
+            messages=[
 
-                    {
-                        "role": "system",
-                        "content":
-                            system_prompt
-                    },
+                {
+                    "role": "system",
+                    "content": system_prompt
+                },
 
-                    {
-                        "role": "user",
-                        "content":
-                            user_prompt
-                    }
+                {
+                    "role": "user",
+                    "content": user_prompt
+                }
 
-                ],
+            ],
 
-                max_tokens=500,
+            max_tokens=500,
 
-                temperature=0.0
+            temperature=0.0
+
+        )
+
+
+        # ====================================================
+        # EXTRACT RESPONSE SAFELY
+        # ====================================================
+
+        if response is None:
+
+            st.error(
+                "Hugging Face returned an empty response."
             )
+
+            return None
+
+
+        st.write(
+            "### 🔍 Qwen Response Object"
         )
 
-
-        raw = (
+        st.write(
             response
-            .choices[0]
-            .message
-            .content
         )
 
 
-        # TEMPORARY DEBUG
+        choices = getattr(
+            response,
+            "choices",
+            None
+        )
+
+
+        if not choices:
+
+            st.error(
+                "Qwen returned no choices."
+            )
+
+            return None
+
+
+        message = getattr(
+            choices[0],
+            "message",
+            None
+        )
+
+
+        if message is None:
+
+            st.error(
+                "Qwen returned no message."
+            )
+
+            return None
+
+
+        raw = getattr(
+            message,
+            "content",
+            None
+        )
+
+
+        # ====================================================
+        # IMPORTANT QWEN FALLBACK
+        # ====================================================
+
+        if raw is None:
+
+            raw = getattr(
+                message,
+                "reasoning_content",
+                None
+            )
+
+
+        if raw is None:
+
+            st.error(
+                "Qwen returned no text content."
+            )
+
+            return None
+
+
         st.write(
             "### 🔍 Raw Qwen Response"
         )
@@ -892,7 +804,7 @@ Return ONLY JSON.
     except Exception as e:
 
         st.error(
-            "Hugging Face / Qwen error:"
+            "Hugging Face / Qwen error"
         )
 
         st.exception(
@@ -903,7 +815,7 @@ Return ONLY JSON.
 
 
 # ============================================================
-# APPLY FILTERS
+# FILTER DATA
 # ============================================================
 
 def apply_filters(
@@ -911,7 +823,7 @@ def apply_filters(
     analysis
 ):
 
-    filtered = data.copy()
+    result = data.copy()
 
     year = analysis.get(
         "filter_year"
@@ -920,19 +832,19 @@ def apply_filters(
 
     if (
         year is not None
-        and "Year" in filtered.columns
+        and "Year" in result.columns
     ):
 
-        filtered = filtered[
-            filtered["Year"] == year
+        result = result[
+            result["Year"] == year
         ]
 
 
-    return filtered
+    return result
 
 
 # ============================================================
-# QUESTION INPUT
+# QUESTION
 # ============================================================
 
 st.subheader(
@@ -942,28 +854,19 @@ st.subheader(
 
 question = st.text_input(
 
-    "Write your question in English:",
+    "Write your question in English",
 
     placeholder=(
-        "Example: Which category has "
-        "the highest sales?"
+        "Example: Which category "
+        "has the highest sales?"
     )
 )
 
 
-analyze_button = st.button(
-
+if st.button(
     "🔍 Analyze",
-
     type="primary"
-)
-
-
-# ============================================================
-# RUN
-# ============================================================
-
-if analyze_button:
+):
 
     if not question.strip():
 
@@ -975,7 +878,7 @@ if analyze_button:
 
 
     with st.spinner(
-        "🤖 AI is understanding your question..."
+        "🤖 AI is analyzing your question..."
     ):
 
         analysis = get_ai_intent(
@@ -986,11 +889,12 @@ if analyze_button:
     if analysis is None:
 
         st.error(
-            "Qwen did not return valid JSON."
+            "I couldn't understand the AI response."
         )
 
         st.info(
-            "Check the Raw Qwen Response above."
+            "Look at the Qwen Response Object above "
+            "to identify the issue."
         )
 
         st.stop()
@@ -1001,16 +905,16 @@ if analyze_button:
     )
 
 
-    analysis_df = apply_filters(
+    filtered_df = apply_filters(
         df,
         analysis
     )
 
 
-    if analysis_df.empty:
+    if filtered_df.empty:
 
         st.warning(
-            "No data found for the selected filter."
+            "No data found."
         )
 
         st.stop()
@@ -1028,10 +932,6 @@ if analyze_button:
         "value_column"
     ]
 
-    aggregation = analysis[
-        "aggregation"
-    ]
-
     n = analysis[
         "n"
     ]
@@ -1043,54 +943,51 @@ if analyze_button:
 
     if analysis_type == "single_value":
 
-        if value_column == "order_id":
-
-            result = (
-                analysis_df[
-                    "order_id"
-                ]
-                .nunique()
-            )
-
-            label = "Unique Orders"
-
-
-        elif value_column is None:
+        if value_column is None:
 
             st.warning(
-                "I couldn't identify the metric."
+                "I could not identify the metric."
             )
 
             st.stop()
 
 
+        if value_column == "order_id":
+
+            result = (
+                filtered_df[
+                    "order_id"
+                ]
+                .nunique()
+            )
+
         else:
 
             series = (
-                analysis_df[
+                filtered_df[
                     value_column
                 ]
                 .dropna()
             )
 
 
-            if aggregation == "sum":
+            if analysis["aggregation"] == "sum":
 
                 result = series.sum()
 
-            elif aggregation == "mean":
+            elif analysis["aggregation"] == "mean":
 
                 result = series.mean()
 
-            elif aggregation == "count":
+            elif analysis["aggregation"] == "count":
 
                 result = series.count()
 
-            elif aggregation == "min":
+            elif analysis["aggregation"] == "min":
 
                 result = series.min()
 
-            elif aggregation == "max":
+            elif analysis["aggregation"] == "max":
 
                 result = series.max()
 
@@ -1099,25 +996,15 @@ if analyze_button:
                 result = series.sum()
 
 
-            label = (
-                f"{aggregation.title()} "
-                f"{value_column.replace('_', ' ').title()}"
-            )
-
-
         st.subheader(
             "🤖 Result"
         )
 
-
-        st.success(
-            f"The **{label.lower()}** is "
-            f"**{result:,.2f}**."
-        )
-
-
         st.metric(
-            label,
+            value_column.replace(
+                "_",
+                " "
+            ).title(),
             f"{result:,.2f}"
         )
 
@@ -1134,14 +1021,14 @@ if analyze_button:
         ):
 
             st.warning(
-                "I couldn't determine the grouping."
+                "Grouping information is missing."
             )
 
             st.stop()
 
 
         grouped = (
-            analysis_df
+            filtered_df
             .groupby(
                 group_column,
                 as_index=False
@@ -1164,11 +1051,6 @@ if analyze_button:
 
 
         best = grouped.iloc[0]
-
-
-        st.subheader(
-            "🤖 AI Result"
-        )
 
 
         st.success(
@@ -1219,14 +1101,14 @@ if analyze_button:
         ):
 
             st.warning(
-                "I couldn't determine the ranking."
+                "Ranking information is missing."
             )
 
             st.stop()
 
 
         grouped = (
-            analysis_df
+            filtered_df
             .groupby(
                 group_column,
                 as_index=False
@@ -1261,9 +1143,7 @@ if analyze_button:
 
             title=(
                 f"Top {n} "
-                f"{group_column.replace('_', ' ').title()} "
-                f"by "
-                f"{value_column.replace('_', ' ').title()}"
+                f"{group_column.replace('_', ' ')}"
             )
         )
 
@@ -1292,22 +1172,21 @@ if analyze_button:
         ):
 
             st.warning(
-                "I couldn't determine the ranking."
+                "Ranking information is missing."
             )
 
             st.stop()
 
 
         grouped = (
-            analysis_df
+            filtered_df
             .groupby(
                 group_column,
                 as_index=False
             )[value_column]
             .sum()
             .sort_values(
-                value_column,
-                ascending=True
+                value_column
             )
             .head(n)
         )
@@ -1332,9 +1211,7 @@ if analyze_button:
 
             title=(
                 f"Bottom {n} "
-                f"{group_column.replace('_', ' ').title()} "
-                f"by "
-                f"{value_column.replace('_', ' ').title()}"
+                f"{group_column.replace('_', ' ')}"
             )
         )
 
@@ -1358,19 +1235,19 @@ if analyze_button:
     elif analysis_type == "trend":
 
         if (
-            value_column is None
-            or "Year" not in analysis_df.columns
+            "Year" not in filtered_df.columns
+            or value_column is None
         ):
 
             st.warning(
-                "Year or metric information is unavailable."
+                "Year information is unavailable."
             )
 
             st.stop()
 
 
         trend = (
-            analysis_df
+            filtered_df
             .groupby(
                 "Year",
                 as_index=False
@@ -1379,11 +1256,6 @@ if analyze_button:
             .sort_values(
                 "Year"
             )
-        )
-
-
-        st.subheader(
-            "📈 Trend Analysis"
         )
 
 
@@ -1416,92 +1288,27 @@ if analyze_button:
 
 
     # ========================================================
-    # COMPARISON
-    # ========================================================
-
-    elif analysis_type == "comparison":
-
-        if (
-            group_column is None
-            or value_column is None
-        ):
-
-            st.warning(
-                "I couldn't determine the comparison."
-            )
-
-            st.stop()
-
-
-        comparison = (
-            analysis_df
-            .groupby(
-                group_column,
-                as_index=False
-            )[value_column]
-            .sum()
-            .sort_values(
-                value_column,
-                ascending=False
-            )
-        )
-
-
-        st.subheader(
-            "📊 Comparison"
-        )
-
-
-        fig = px.bar(
-
-            comparison,
-
-            x=group_column,
-
-            y=value_column,
-
-            text_auto=".2s",
-
-            title=(
-                f"{value_column.title()} Comparison"
-            )
-        )
-
-
-        st.plotly_chart(
-            fig,
-            use_container_width=True
-        )
-
-
-        st.dataframe(
-            comparison,
-            use_container_width=True
-        )
-
-
-    # ========================================================
     # NEGATIVE PROFIT
     # ========================================================
 
     elif analysis_type == "negative_profit":
 
         if (
-            "profit" not in analysis_df.columns
+            "profit" not in filtered_df.columns
             or "product_name"
-            not in analysis_df.columns
+            not in filtered_df.columns
         ):
 
             st.warning(
-                "Required columns are unavailable."
+                "Required columns are missing."
             )
 
             st.stop()
 
 
         losses = (
-            analysis_df[
-                analysis_df["profit"] < 0
+            filtered_df[
+                filtered_df["profit"] < 0
             ]
             .groupby(
                 "product_name",
@@ -1509,9 +1316,9 @@ if analyze_button:
             )["profit"]
             .sum()
             .sort_values(
-                "profit",
-                ascending=True
+                "profit"
             )
+            .head(n)
         )
 
 
@@ -1520,15 +1327,9 @@ if analyze_button:
         )
 
 
-        st.metric(
-            "Loss-Making Products",
-            f"{len(losses):,}"
-        )
-
-
         fig = px.bar(
 
-            losses.head(20),
+            losses,
 
             x="profit",
 
@@ -1536,9 +1337,7 @@ if analyze_button:
 
             orientation="h",
 
-            title=(
-                "Top 20 Loss-Making Products"
-            )
+            title="Loss-Making Products"
         )
 
 
@@ -1568,18 +1367,18 @@ if analyze_button:
 
 
         if not all(
-            col in analysis_df.columns
+            col in filtered_df.columns
             for col in required
         ):
 
             st.warning(
-                "Required columns are unavailable."
+                "Required columns are missing."
             )
 
             st.stop()
 
 
-        discount_data = analysis_df[
+        discount_data = filtered_df[
             [
                 "discount",
                 "profit",
@@ -1603,15 +1402,12 @@ if analyze_button:
             )
 
 
-        discount_data = (
-            discount_data
-            .dropna(
-                subset=[
-                    "discount",
-                    "profit",
-                    "sales"
-                ]
-            )
+        discount_data = discount_data.dropna(
+            subset=[
+                "discount",
+                "profit",
+                "sales"
+            ]
         )
 
 
@@ -1697,20 +1493,16 @@ if analyze_button:
         insights = []
 
 
-        # --------------------------------------------
-        # Category Sales
-        # --------------------------------------------
-
         if all(
-            column in analysis_df.columns
-            for column in [
+            c in filtered_df.columns
+            for c in [
                 "category",
                 "sales"
             ]
         ):
 
             category_sales = (
-                analysis_df
+                filtered_df
                 .groupby(
                     "category"
                 )["sales"]
@@ -1723,36 +1515,23 @@ if analyze_button:
 
             if not category_sales.empty:
 
-                best_category = (
-                    category_sales.index[0]
-                )
-
-                best_sales = (
-                    category_sales.iloc[0]
-                )
-
-
                 insights.append(
-                    f"**{best_category}** is the "
-                    f"highest-sales category with "
-                    f"sales of **{best_sales:,.2f}**."
+                    f"**{category_sales.index[0]}** "
+                    f"has the highest sales with "
+                    f"**{category_sales.iloc[0]:,.2f}**."
                 )
 
-
-        # --------------------------------------------
-        # Category Profit
-        # --------------------------------------------
 
         if all(
-            column in analysis_df.columns
-            for column in [
+            c in filtered_df.columns
+            for c in [
                 "category",
                 "profit"
             ]
         ):
 
             category_profit = (
-                analysis_df
+                filtered_df
                 .groupby(
                     "category"
                 )["profit"]
@@ -1765,37 +1544,24 @@ if analyze_button:
 
             if not category_profit.empty:
 
-                best_profit_category = (
-                    category_profit.index[0]
-                )
-
-                best_profit = (
-                    category_profit.iloc[0]
-                )
-
-
                 insights.append(
-                    f"**{best_profit_category}** "
-                    f"generates the highest total "
-                    f"profit of "
-                    f"**{best_profit:,.2f}**."
+                    f"**{category_profit.index[0]}** "
+                    f"is the most profitable category "
+                    f"with profit of "
+                    f"**{category_profit.iloc[0]:,.2f}**."
                 )
 
-
-        # --------------------------------------------
-        # Region
-        # --------------------------------------------
 
         if all(
-            column in analysis_df.columns
-            for column in [
+            c in filtered_df.columns
+            for c in [
                 "region",
                 "profit"
             ]
         ):
 
             region_profit = (
-                analysis_df
+                filtered_df
                 .groupby(
                     "region"
                 )["profit"]
@@ -1808,31 +1574,22 @@ if analyze_button:
 
             if not region_profit.empty:
 
-                best_region = (
-                    region_profit.index[0]
-                )
-
-
                 insights.append(
-                    f"**{best_region}** is the "
-                    f"most profitable region."
+                    f"**{region_profit.index[0]}** "
+                    f"is the most profitable region."
                 )
 
-
-        # --------------------------------------------
-        # Discount
-        # --------------------------------------------
 
         if all(
-            column in analysis_df.columns
-            for column in [
+            c in filtered_df.columns
+            for c in [
                 "discount",
                 "profit"
             ]
         ):
 
-            corr = (
-                analysis_df[
+            correlation = (
+                filtered_df[
                     [
                         "discount",
                         "profit"
@@ -1845,49 +1602,32 @@ if analyze_button:
 
 
             insights.append(
-                f"The correlation between "
-                f"discount and profit is "
-                f"**{corr:.2f}**."
+                f"Discount and profit have a "
+                f"correlation of **{correlation:.2f}**."
             )
 
 
-        # --------------------------------------------
-        # Negative Profit
-        # --------------------------------------------
+        if "profit" in filtered_df.columns:
 
-        if "profit" in analysis_df.columns:
-
-            negative_rows = (
-                analysis_df["profit"] < 0
+            loss_rows = (
+                filtered_df["profit"] < 0
             ).sum()
 
 
             insights.append(
-                f"There are **{negative_rows:,}** "
-                f"rows with negative profit."
+                f"**{loss_rows:,}** records "
+                f"have negative profit."
             )
 
 
-        # --------------------------------------------
-        # Display
-        # --------------------------------------------
+        for i, insight in enumerate(
+            insights[:n],
+            start=1
+        ):
 
-        if not insights:
-
-            st.info(
-                "No insights could be generated."
+            st.markdown(
+                f"### {i}. {insight}"
             )
-
-        else:
-
-            for index, insight in enumerate(
-                insights[:n],
-                start=1
-            ):
-
-                st.markdown(
-                    f"### {index}. {insight}"
-                )
 
 
 # ============================================================
@@ -1897,7 +1637,6 @@ if analyze_button:
 st.divider()
 
 st.caption(
-    "🤖 AI Data Analyst | "
-    "Python • Pandas • Streamlit • "
+    "Built with Python • Pandas • Streamlit • "
     "Hugging Face • Qwen3 • Plotly"
 )
