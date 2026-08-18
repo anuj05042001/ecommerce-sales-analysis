@@ -6,9 +6,9 @@ import json
 import re
 
 
-# =========================================================
+# ============================================================
 # PAGE CONFIG
-# =========================================================
+# ============================================================
 
 st.set_page_config(
     page_title="AI Data Analyst",
@@ -17,9 +17,9 @@ st.set_page_config(
 )
 
 
-# =========================================================
+# ============================================================
 # CUSTOM CSS
-# =========================================================
+# ============================================================
 
 st.markdown("""
 <style>
@@ -49,9 +49,9 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-# =========================================================
+# ============================================================
 # TITLE
-# =========================================================
+# ============================================================
 
 st.markdown(
     '<div class="title">🤖 AI Data Analyst</div>',
@@ -68,16 +68,19 @@ st.markdown(
 st.divider()
 
 
-# =========================================================
+# ============================================================
 # LOAD DATA
-# =========================================================
+# ============================================================
 
 @st.cache_data
 def load_data():
 
     df = pd.read_csv("ecommerce_data.csv")
 
-    # Convert dates
+    # --------------------------------------------------------
+    # Dates
+    # --------------------------------------------------------
+
     if "order_date" in df.columns:
         df["order_date"] = pd.to_datetime(
             df["order_date"],
@@ -90,7 +93,10 @@ def load_data():
             errors="coerce"
         )
 
-    # Convert numeric columns
+    # --------------------------------------------------------
+    # Numeric columns
+    # --------------------------------------------------------
+
     numeric_columns = [
         "sales",
         "quantity",
@@ -108,10 +114,16 @@ def load_data():
                 errors="coerce"
             )
 
-    # Create Year
+    # --------------------------------------------------------
+    # Year
+    # --------------------------------------------------------
+
     if "order_date" in df.columns:
 
-        df["Year"] = df["order_date"].dt.year
+        df["Year"] = (
+            df["order_date"]
+            .dt.year
+        )
 
     return df
 
@@ -119,9 +131,9 @@ def load_data():
 df = load_data()
 
 
-# =========================================================
+# ============================================================
 # DATA INFORMATION
-# =========================================================
+# ============================================================
 
 with st.expander("📊 Dataset Information"):
 
@@ -143,42 +155,64 @@ with st.expander("📊 Dataset Information"):
     )
 
 
-# =========================================================
+# ============================================================
 # SIDEBAR
-# =========================================================
+# ============================================================
 
 st.sidebar.title("🤖 AI Data Analyst")
 
 st.sidebar.write(
-    "Ask questions about your dataset."
+    "Ask questions about your e-commerce dataset."
 )
 
 st.sidebar.divider()
 
-st.sidebar.subheader("💡 Try these questions")
+st.sidebar.subheader("💡 Example Questions")
 
 example_questions = [
+
     "What is the total sales?",
+
     "Which category has the highest sales?",
+
     "Which region generated the highest profit?",
+
     "Show sales by category.",
+
+    "Show profit by region.",
+
     "What was the total profit in 2014?",
+
+    "What was the sales in 2013?",
+
     "Show the top 10 products by sales.",
+
+    "Show the bottom 10 products by profit.",
+
+    "Which category has the highest profit?",
+
+    "Which segment has the highest sales?",
+
+    "Compare sales between categories.",
+
     "Which products have negative profit?"
+
 ]
 
 for q in example_questions:
 
-    st.sidebar.write("• " + q)
+    st.sidebar.write(
+        "• " + q
+    )
 
 
-# =========================================================
+# ============================================================
 # HUGGING FACE TOKEN
-# =========================================================
+# ============================================================
 
 try:
 
-    hf_token = st.secrets["HF_TOKEN"]
+    HF_TOKEN = st.secrets["HF_TOKEN"]
 
 except Exception:
 
@@ -190,65 +224,273 @@ except Exception:
     st.stop()
 
 
-# =========================================================
+# ============================================================
 # HUGGING FACE CLIENT
-# =========================================================
+# ============================================================
 
 client = InferenceClient(
-    api_key=hf_token
+    api_key=HF_TOKEN
 )
 
 
-# =========================================================
-# DATA SUMMARY
-# =========================================================
+# ============================================================
+# MODEL
+# ============================================================
 
-def create_data_summary(data):
+MODEL_NAME = "Qwen/Qwen3-8B"
 
-    summary = {}
 
-    summary["rows"] = len(data)
+# ============================================================
+# DATASET SUMMARY
+# ============================================================
 
-    summary["columns"] = list(data.columns)
+def get_dataset_summary(data):
 
-    summary["data_types"] = {
-        col: str(dtype)
-        for col, dtype in data.dtypes.items()
+    return {
+        "rows": len(data),
+        "columns": list(data.columns),
+        "numeric_columns": list(
+            data.select_dtypes(
+                include="number"
+            ).columns
+        ),
+        "categorical_columns": list(
+            data.select_dtypes(
+                include=["object", "category"]
+            ).columns
+        )
     }
 
-    summary["numeric_columns"] = []
 
-    for col in data.select_dtypes(
-        include="number"
-    ).columns:
-
-        summary["numeric_columns"].append(col)
-
-    summary["categorical_columns"] = []
-
-    for col in data.select_dtypes(
-        include=["object", "category"]
-    ).columns:
-
-        summary["categorical_columns"].append(col)
-
-    return summary
+dataset_summary = get_dataset_summary(df)
 
 
-data_summary = create_data_summary(df)
+# ============================================================
+# CLEAN AI JSON
+# ============================================================
+
+def clean_json_response(text):
+
+    if not text:
+        return None
+
+    text = text.strip()
+
+    # Remove <think>...</think> if model produces reasoning
+    text = re.sub(
+        r"<think>.*?</think>",
+        "",
+        text,
+        flags=re.DOTALL
+    ).strip()
+
+    # Remove markdown fences
+    text = re.sub(
+        r"```json",
+        "",
+        text,
+        flags=re.IGNORECASE
+    )
+
+    text = re.sub(
+        r"```",
+        "",
+        text
+    )
+
+    text = text.strip()
+
+    # Find JSON object if extra text exists
+    start = text.find("{")
+    end = text.rfind("}")
+
+    if start != -1 and end != -1:
+
+        text = text[start:end + 1]
+
+    try:
+
+        return json.loads(text)
+
+    except json.JSONDecodeError:
+
+        return None
 
 
-# =========================================================
-# USER QUESTION
-# =========================================================
+# ============================================================
+# NORMALIZE AI RESPONSE
+# ============================================================
+
+def normalize_analysis(analysis):
+
+    if not isinstance(analysis, dict):
+
+        analysis = {}
+
+    analysis_type = analysis.get(
+        "analysis_type"
+    )
+
+    group_column = analysis.get(
+        "group_column"
+    )
+
+    value_column = analysis.get(
+        "value_column"
+    )
+
+    aggregation = analysis.get(
+        "aggregation"
+    )
+
+    n_value = analysis.get(
+        "n"
+    )
+
+    filter_year = analysis.get(
+        "filter_year"
+    )
+
+    filter_category = analysis.get(
+        "filter_category"
+    )
+
+    filter_region = analysis.get(
+        "filter_region"
+    )
+
+    # --------------------------------------------------------
+    # Safe n
+    # --------------------------------------------------------
+
+    if n_value is None:
+
+        n = 10
+
+    else:
+
+        try:
+
+            n = int(n_value)
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            n = 10
+
+    if n <= 0:
+
+        n = 10
+
+    if n > 100:
+
+        n = 100
+
+    # --------------------------------------------------------
+    # Validate analysis type
+    # --------------------------------------------------------
+
+    valid_types = [
+        "single_value",
+        "group_by",
+        "top_n",
+        "bottom_n",
+        "negative_profit"
+    ]
+
+    if analysis_type not in valid_types:
+
+        analysis_type = "single_value"
+
+    # --------------------------------------------------------
+    # Validate aggregation
+    # --------------------------------------------------------
+
+    valid_aggregations = [
+        "sum",
+        "mean",
+        "count",
+        "min",
+        "max"
+    ]
+
+    if aggregation not in valid_aggregations:
+
+        aggregation = "sum"
+
+    # --------------------------------------------------------
+    # Validate group column
+    # --------------------------------------------------------
+
+    if (
+        group_column is not None
+        and group_column not in df.columns
+    ):
+
+        group_column = None
+
+    # --------------------------------------------------------
+    # Validate value column
+    # --------------------------------------------------------
+
+    if (
+        value_column is not None
+        and value_column not in df.columns
+    ):
+
+        value_column = None
+
+    # --------------------------------------------------------
+    # Year
+    # --------------------------------------------------------
+
+    if filter_year in [
+        "",
+        "null",
+        "None"
+    ]:
+
+        filter_year = None
+
+    if filter_year is not None:
+
+        try:
+
+            filter_year = int(filter_year)
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            filter_year = None
+
+    return {
+        "analysis_type": analysis_type,
+        "group_column": group_column,
+        "value_column": value_column,
+        "aggregation": aggregation,
+        "n": n,
+        "filter_year": filter_year,
+        "filter_category": filter_category,
+        "filter_region": filter_region
+    }
+
+
+# ============================================================
+# AI QUESTION
+# ============================================================
 
 st.subheader("💬 Ask Your Data")
 
 question = st.text_input(
-    "Type your question in English:",
-    placeholder="Example: Which category has the highest sales?"
+    "Ask a question in English:",
+    placeholder=(
+        "Example: Which category has the highest sales?"
+    )
 )
-
 
 analyze_button = st.button(
     "🔍 Analyze Data",
@@ -256,85 +498,74 @@ analyze_button = st.button(
 )
 
 
-# =========================================================
-# AI ANALYSIS
-# =========================================================
+# ============================================================
+# MAIN AI ANALYSIS
+# ============================================================
 
 if analyze_button:
 
     if not question.strip():
 
         st.warning(
-            "Please enter a question first."
+            "Please enter a question."
         )
 
         st.stop()
 
+    # --------------------------------------------------------
+    # SYSTEM PROMPT
+    # --------------------------------------------------------
 
-    with st.spinner(
-        "🤖 AI is analyzing your question..."
-    ):
-
-        try:
-
-            # -------------------------------------------------
-            # AI SYSTEM PROMPT
-            # -------------------------------------------------
-
-            system_prompt = """
+    system_prompt = f"""
 You are an expert Data Analyst.
 
-You analyze an e-commerce dataset.
+You are working with an e-commerce dataset.
 
-Available columns are:
+Available columns:
 
-order_id
-order_date
-ship_date
-ship_mode
-customer_name
-segment
-state
-country
-market
-region
-product_id
-category
-sub_category
-product_name
-sales
-quantity
-discount
-profit
-shipping_cost
-Year
+{json.dumps(dataset_summary["columns"], indent=2)}
 
-The user will ask a question in normal English.
+Numeric columns:
 
-Your job is to determine the required analysis.
+{json.dumps(dataset_summary["numeric_columns"], indent=2)}
+
+Categorical columns:
+
+{json.dumps(dataset_summary["categorical_columns"], indent=2)}
+
+Your task is to understand the user's natural-language
+question and convert it into a structured analysis instruction.
+
+IMPORTANT:
+
+Do NOT calculate the final numeric answer yourself.
+
+Python/Pandas will perform the actual calculation.
 
 Return ONLY valid JSON.
 
-Use exactly this format:
+Use exactly:
 
-{
+{{
     "analysis_type": "single_value",
     "group_column": null,
     "value_column": "sales",
     "aggregation": "sum",
     "n": 10,
     "filter_year": null,
-    "answer": "Short explanation"
-}
+    "filter_category": null,
+    "filter_region": null
+}}
 
-Allowed analysis_type values:
+Allowed analysis_type:
 
 single_value
 group_by
 top_n
 bottom_n
+negative_profit
 
-Allowed aggregation values:
+Allowed aggregation:
 
 sum
 mean
@@ -344,45 +575,108 @@ max
 
 Rules:
 
-1. "Sales" or "revenue" means sales.
-2. "Profit" means profit.
-3. "Quantity" means quantity.
-4. "Orders" means unique order_id.
-5. "By category" means group_column = category.
-6. "By region" means group_column = region.
-7. "By segment" means group_column = segment.
-8. "By sub-category" means group_column = sub_category.
-9. "By product" means group_column = product_name.
-10. "Top 10 products" means analysis_type = top_n.
-11. "Bottom 10 products" means analysis_type = bottom_n.
-12. If the question contains a year such as 2014, set filter_year to that year.
-13. Do not invent column names.
-14. Keep answer short.
+1. Sales means sales.
+
+2. Revenue means sales.
+
+3. Profit means profit.
+
+4. Quantity means quantity.
+
+5. Shipping cost means shipping_cost.
+
+6. Discount means discount.
+
+7. Orders means unique order_id.
+
+8. "by category" means group_column = category.
+
+9. "by sub-category" means group_column = sub_category.
+
+10. "by region" means group_column = region.
+
+11. "by segment" means group_column = segment.
+
+12. "by market" means group_column = market.
+
+13. "by state" means group_column = state.
+
+14. "by country" means group_column = country.
+
+15. "by product" means group_column = product_name.
+
+16. "top 10 products by sales" means:
+    analysis_type = top_n
+    group_column = product_name
+    value_column = sales
+    aggregation = sum
+    n = 10
+
+17. "bottom 10 products by profit" means:
+    analysis_type = bottom_n
+    group_column = product_name
+    value_column = profit
+    aggregation = sum
+    n = 10
+
+18. "highest sales category" means:
+    analysis_type = group_by
+    group_column = category
+    value_column = sales
+    aggregation = sum
+
+19. "highest profit region" means:
+    analysis_type = group_by
+    group_column = region
+    value_column = profit
+    aggregation = sum
+
+20. If the user mentions a year such as 2014,
+    set filter_year to 2014.
+
+21. If the user asks for negative-profit products,
+    use:
+    analysis_type = negative_profit
+    group_column = product_name
+    value_column = profit
+    aggregation = sum
+
+22. Never invent column names.
+
+23. Never return markdown.
+
+24. Never return explanations.
+
+25. Return JSON only.
 """
 
 
-            # -------------------------------------------------
-            # USER PROMPT
-            # -------------------------------------------------
+    # --------------------------------------------------------
+    # USER PROMPT
+    # --------------------------------------------------------
 
-            user_prompt = f"""
-Dataset information:
-
-{json.dumps(data_summary, indent=2)}
-
+    user_prompt = f"""
 User question:
 
 {question}
+
+Return only the JSON analysis instruction.
 """
 
 
-            # -------------------------------------------------
-            # HUGGING FACE REQUEST
-            # -------------------------------------------------
+    # --------------------------------------------------------
+    # CALL HUGGING FACE
+    # --------------------------------------------------------
+
+    with st.spinner(
+        "🤖 AI is understanding your question..."
+    ):
+
+        try:
 
             response = client.chat.completions.create(
 
-                model="Qwen/Qwen2.5-7B-Instruct",
+                model=MODEL_NAME,
 
                 messages=[
                     {
@@ -395,106 +689,188 @@ User question:
                     }
                 ],
 
-                max_tokens=500,
+                max_tokens=400,
 
                 temperature=0.1
             )
 
 
-            # -------------------------------------------------
-            # GET AI RESPONSE
-            # -------------------------------------------------
-
-            ai_text = response.choices[
-                0
-            ].message.content.strip()
+            ai_text = (
+                response
+                .choices[0]
+                .message.content
+            )
 
 
-            # Remove markdown fences
-            ai_text = re.sub(
-                r"```json|```",
-                "",
-                ai_text
-            ).strip()
-
-
-            analysis = json.loads(
+            analysis = clean_json_response(
                 ai_text
             )
 
 
-            # -------------------------------------------------
-            # READ AI INSTRUCTIONS
-            # -------------------------------------------------
+            # ------------------------------------------------
+            # JSON FALLBACK
+            # ------------------------------------------------
 
-            analysis_type = analysis.get(
-                "analysis_type"
-            )
+            if analysis is None:
 
-            group_column = analysis.get(
-                "group_column"
-            )
-
-            value_column = analysis.get(
-                "value_column"
-            )
-
-            aggregation = analysis.get(
-                "aggregation"
-            )
-
-            n = int(
-                analysis.get(
-                    "n",
-                    10
+                st.warning(
+                    "AI returned an unexpected response. "
+                    "Trying again..."
                 )
+
+                response = client.chat.completions.create(
+
+                    model=MODEL_NAME,
+
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt
+                        },
+                        {
+                            "role": "user",
+                            "content": (
+                                user_prompt
+                                + "\nRETURN JSON ONLY."
+                            )
+                        }
+                    ],
+
+                    max_tokens=400,
+
+                    temperature=0
+                )
+
+
+                ai_text = (
+                    response
+                    .choices[0]
+                    .message.content
+                )
+
+
+                analysis = clean_json_response(
+                    ai_text
+                )
+
+
+            if analysis is None:
+
+                st.error(
+                    "The AI could not understand the question."
+                )
+
+                st.stop()
+
+
+            # ------------------------------------------------
+            # NORMALIZE
+            # ------------------------------------------------
+
+            analysis = normalize_analysis(
+                analysis
             )
 
-            filter_year = analysis.get(
-                "filter_year"
-            )
 
-
-            # -------------------------------------------------
-            # APPLY YEAR FILTER
-            # -------------------------------------------------
+            # ------------------------------------------------
+            # COPY DATA
+            # ------------------------------------------------
 
             analysis_df = df.copy()
 
-            if filter_year:
+
+            # =================================================
+            # YEAR FILTER
+            # =================================================
+
+            filter_year = analysis[
+                "filter_year"
+            ]
+
+            if filter_year is not None:
+
+                if "Year" in analysis_df.columns:
+
+                    analysis_df = analysis_df[
+                        analysis_df["Year"]
+                        == filter_year
+                    ]
+
+
+            # =================================================
+            # CATEGORY FILTER
+            # =================================================
+
+            filter_category = analysis[
+                "filter_category"
+            ]
+
+            if (
+                filter_category
+                and "category" in analysis_df.columns
+            ):
 
                 analysis_df = analysis_df[
-                    analysis_df["Year"]
-                    == int(filter_year)
+                    analysis_df["category"]
+                    .astype(str)
+                    .str.lower()
+                    == str(filter_category).lower()
                 ]
 
 
-            # -------------------------------------------------
-            # VALIDATE COLUMNS
-            # -------------------------------------------------
+            # =================================================
+            # REGION FILTER
+            # =================================================
+
+            filter_region = analysis[
+                "filter_region"
+            ]
 
             if (
-                group_column
-                and group_column not in df.columns
+                filter_region
+                and "region" in analysis_df.columns
             ):
 
-                st.error(
-                    "AI selected an invalid group column."
+                analysis_df = analysis_df[
+                    analysis_df["region"]
+                    .astype(str)
+                    .str.lower()
+                    == str(filter_region).lower()
+                ]
+
+
+            # =================================================
+            # CHECK EMPTY DATA
+            # =================================================
+
+            if analysis_df.empty:
+
+                st.warning(
+                    "No data found for the selected filters."
                 )
 
                 st.stop()
 
 
-            if (
-                value_column
-                and value_column not in df.columns
-            ):
+            analysis_type = analysis[
+                "analysis_type"
+            ]
 
-                st.error(
-                    "AI selected an invalid value column."
-                )
+            group_column = analysis[
+                "group_column"
+            ]
 
-                st.stop()
+            value_column = analysis[
+                "value_column"
+            ]
+
+            aggregation = analysis[
+                "aggregation"
+            ]
+
+            n = analysis[
+                "n"
+            ]
 
 
             # =================================================
@@ -503,62 +879,80 @@ User question:
 
             if analysis_type == "single_value":
 
+                st.subheader(
+                    "🤖 AI Analysis"
+                )
+
+
+                if value_column is None:
+
+                    st.error(
+                        "I couldn't identify the metric."
+                    )
+
+                    st.stop()
+
+
+                # --------------------------------------------
+                # Orders
+                # --------------------------------------------
+
                 if value_column == "order_id":
 
                     result = analysis_df[
                         "order_id"
                     ].nunique()
 
-                elif aggregation == "sum":
+                    label = "Unique Orders"
 
-                    result = analysis_df[
-                        value_column
-                    ].sum()
-
-                elif aggregation == "mean":
-
-                    result = analysis_df[
-                        value_column
-                    ].mean()
-
-                elif aggregation == "min":
-
-                    result = analysis_df[
-                        value_column
-                    ].min()
-
-                elif aggregation == "max":
-
-                    result = analysis_df[
-                        value_column
-                    ].max()
-
-                elif aggregation == "count":
-
-                    result = analysis_df[
-                        value_column
-                    ].count()
 
                 else:
 
-                    result = analysis_df[
+                    series = analysis_df[
                         value_column
-                    ].sum()
+                    ].dropna()
 
 
-                st.subheader("🤖 AI Answer")
+                    if aggregation == "sum":
+
+                        result = series.sum()
+
+                    elif aggregation == "mean":
+
+                        result = series.mean()
+
+                    elif aggregation == "min":
+
+                        result = series.min()
+
+                    elif aggregation == "max":
+
+                        result = series.max()
+
+                    elif aggregation == "count":
+
+                        result = series.count()
+
+                    else:
+
+                        result = series.sum()
+
+
+                    label = (
+                        f"{aggregation.title()} "
+                        f"{value_column.replace('_', ' ').title()}"
+                    )
+
 
                 st.success(
-                    f"{analysis.get('answer', '')}"
+                    f"Based on your dataset, "
+                    f"the {label.lower()} is "
+                    f"**{result:,.2f}**."
                 )
 
 
                 st.metric(
-                    value_column.replace(
-                        "_",
-                        " "
-                    ).title(),
-
+                    label,
                     f"{result:,.2f}"
                 )
 
@@ -567,11 +961,19 @@ User question:
             # GROUP BY
             # =================================================
 
-            elif (
-                analysis_type == "group_by"
-                and group_column
-                and value_column
-            ):
+            elif analysis_type == "group_by":
+
+                if (
+                    group_column is None
+                    or value_column is None
+                ):
+
+                    st.error(
+                        "I couldn't determine how to group the data."
+                    )
+
+                    st.stop()
+
 
                 grouped = (
                     analysis_df
@@ -587,27 +989,64 @@ User question:
                 )
 
 
+                if grouped.empty:
+
+                    st.warning(
+                        "No results found."
+                    )
+
+                    st.stop()
+
+
+                highest = grouped.iloc[0]
+
+
                 st.subheader(
-                    "🤖 AI Answer"
+                    "🤖 AI Analysis"
                 )
+
 
                 st.success(
-                    analysis.get(
-                        "answer",
-                        "Here is the requested analysis."
-                    )
+                    f"**{highest[group_column]}** "
+                    f"has the highest "
+                    f"**{value_column.replace('_', ' ')}** "
+                    f"with **{highest[value_column]:,.2f}**."
                 )
 
 
+                # --------------------------------------------
+                # Chart
+                # --------------------------------------------
+
                 fig = px.bar(
+
                     grouped,
+
                     x=group_column,
+
                     y=value_column,
+
                     text_auto=".2s",
+
                     title=(
                         f"{value_column.title()} "
                         f"by "
                         f"{group_column.replace('_', ' ').title()}"
+                    )
+                )
+
+
+                fig.update_layout(
+                    xaxis_title=(
+                        group_column
+                        .replace("_", " ")
+                        .title()
+                    ),
+
+                    yaxis_title=(
+                        value_column
+                        .replace("_", " ")
+                        .title()
                     )
                 )
 
@@ -628,11 +1067,19 @@ User question:
             # TOP N
             # =================================================
 
-            elif (
-                analysis_type == "top_n"
-                and group_column
-                and value_column
-            ):
+            elif analysis_type == "top_n":
+
+                if (
+                    group_column is None
+                    or value_column is None
+                ):
+
+                    st.error(
+                        "I couldn't determine the requested ranking."
+                    )
+
+                    st.stop()
+
 
                 grouped = (
                     analysis_df
@@ -649,20 +1096,40 @@ User question:
                 )
 
 
+                if grouped.empty:
+
+                    st.warning(
+                        "No results found."
+                    )
+
+                    st.stop()
+
+
                 st.subheader(
-                    "🏆 Top Results"
+                    f"🏆 Top {n} Results"
                 )
 
 
                 fig = px.bar(
+
                     grouped.sort_values(
                         value_column
                     ),
+
                     x=value_column,
+
                     y=group_column,
+
                     orientation="h",
+
                     text_auto=".2s",
-                    title=f"Top {n}"
+
+                    title=(
+                        f"Top {n} "
+                        f"{group_column.replace('_', ' ').title()} "
+                        f"by "
+                        f"{value_column.replace('_', ' ').title()}"
+                    )
                 )
 
 
@@ -682,11 +1149,19 @@ User question:
             # BOTTOM N
             # =================================================
 
-            elif (
-                analysis_type == "bottom_n"
-                and group_column
-                and value_column
-            ):
+            elif analysis_type == "bottom_n":
+
+                if (
+                    group_column is None
+                    or value_column is None
+                ):
+
+                    st.error(
+                        "I couldn't determine the requested ranking."
+                    )
+
+                    st.stop()
+
 
                 grouped = (
                     analysis_df
@@ -703,18 +1178,38 @@ User question:
                 )
 
 
+                if grouped.empty:
+
+                    st.warning(
+                        "No results found."
+                    )
+
+                    st.stop()
+
+
                 st.subheader(
-                    "⚠️ Bottom Results"
+                    f"⚠️ Bottom {n} Results"
                 )
 
 
                 fig = px.bar(
+
                     grouped,
+
                     x=value_column,
+
                     y=group_column,
+
                     orientation="h",
+
                     text_auto=".2s",
-                    title=f"Bottom {n}"
+
+                    title=(
+                        f"Bottom {n} "
+                        f"{group_column.replace('_', ' ').title()} "
+                        f"by "
+                        f"{value_column.replace('_', ' ').title()}"
+                    )
                 )
 
 
@@ -730,23 +1225,63 @@ User question:
                 )
 
 
-            else:
+            # =================================================
+            # NEGATIVE PROFIT
+            # =================================================
 
-                st.warning(
-                    "I could not determine the required analysis."
+            elif analysis_type == "negative_profit":
+
+                negative = (
+                    analysis_df[
+                        analysis_df["profit"] < 0
+                    ]
+                    .groupby(
+                        "product_name",
+                        as_index=False
+                    )["profit"]
+                    .sum()
+                    .sort_values(
+                        "profit",
+                        ascending=True
+                    )
                 )
 
 
-        except json.JSONDecodeError:
+                st.subheader(
+                    "⚠️ Loss-Making Products"
+                )
 
-            st.error(
-                "The AI returned an invalid response. "
-                "Please try the question again."
-            )
 
-            st.code(
-                ai_text
-            )
+                st.info(
+                    f"{len(negative):,} "
+                    f"products/groups have negative profit."
+                )
+
+
+                fig = px.bar(
+
+                    negative.head(20),
+
+                    x="profit",
+
+                    y="product_name",
+
+                    orientation="h",
+
+                    title="Top 20 Loss-Making Products"
+                )
+
+
+                st.plotly_chart(
+                    fig,
+                    use_container_width=True
+                )
+
+
+                st.dataframe(
+                    negative,
+                    use_container_width=True
+                )
 
 
         except Exception as e:
@@ -758,13 +1293,13 @@ User question:
             st.exception(e)
 
 
-# =========================================================
+# ============================================================
 # FOOTER
-# =========================================================
+# ============================================================
 
 st.divider()
 
 st.caption(
     "🤖 AI Data Analyst | "
-    "Python • Pandas • Streamlit • Hugging Face • Plotly"
+    "Python • Pandas • Streamlit • Hugging Face • Qwen3 • Plotly"
 )
