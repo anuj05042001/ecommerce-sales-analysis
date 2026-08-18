@@ -745,7 +745,8 @@ Return JSON only.
         )
 
 
-        return clean_json(raw)
+        st.code(raw)
+return clean_json(raw)
 
 
     except Exception:
